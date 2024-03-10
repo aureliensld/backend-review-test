@@ -84,22 +84,27 @@ class Event
         }
     }
 
-    public function id(): string
+    public function getId(): string
     {
         return $this->id;
     }
 
-    public function type(): string
+    public function getType(): string
     {
         return $this->type;
     }
 
-    public function actor(): Actor
+    public function getCount(): int
+    {
+        return $this->count;
+    }
+
+    public function getActor(): Actor
     {
         return $this->actor;
     }
 
-    public function repo(): Repo
+    public function getRepo(): Repo
     {
         return $this->repo;
     }
@@ -107,17 +112,12 @@ class Event
     /**
      * @return mixed[]
      */
-    public function payload(): array
+    public function getPayload(): array
     {
         return $this->payload;
     }
 
-    public function count(): int
-    {
-        return $this->count;
-    }
-
-    public function createAt(): \DateTimeImmutable
+    public function getCreateAt(): \DateTimeImmutable
     {
         return $this->createAt;
     }
