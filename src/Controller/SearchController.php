@@ -15,9 +15,7 @@ class SearchController
     {
     }
 
-    /**
-     * @Route(path="/api/search", name="api_search", methods={"GET"})
-     */
+    #[Route(path: '/api/search', name: 'api_search', methods: ['GET'])]
     public function searchCommits(Request $request, #[MapQueryString] SearchInput $searchInput = new SearchInput()): JsonResponse
     {
         $countByType = $this->repository->countByType($searchInput);

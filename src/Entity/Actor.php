@@ -6,35 +6,22 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity()
- *
- * @ORM\Table(name="actor")
- */
+#[ORM\Entity]
+#[ORM\Table(name: 'actor')]
 class Actor
 {
-    /**
-     * @ORM\Id
-     *
-     * @ORM\Column(type="bigint")
-     *
-     * @ORM\GeneratedValue(strategy="NONE")
-     */
+    #[ORM\Id]
+    #[ORM\Column(type: 'bigint')]
+    #[ORM\GeneratedValue(strategy: 'NONE')]
     public string $id;
 
-    /**
-     * @ORM\Column(type="string")
-     */
+    #[ORM\Column(type: 'string')]
     public string $login;
 
-    /**
-     * @ORM\Column(type="string")
-     */
+    #[ORM\Column(type: 'string')]
     public string $url;
 
-    /**
-     * @ORM\Column(type="string")
-     */
+    #[ORM\Column(type: 'string')]
     public string $avatarUrl;
 
     public function __construct(int|string $id, string $login, string $url, string $avatarUrl)
