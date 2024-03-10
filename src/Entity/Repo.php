@@ -20,7 +20,7 @@ class Repo
      *
      * @ORM\GeneratedValue(strategy="NONE")
      */
-    private int $id;
+    private string $id;
 
     /**
      * @ORM\Column(type="string")
@@ -32,14 +32,14 @@ class Repo
      */
     public string $url;
 
-    public function __construct(int $id, string $name, string $url)
+    public function __construct(int|string $id, string $name, string $url)
     {
-        $this->id = $id;
+        $this->id = (string) $id;
         $this->name = $name;
         $this->url = $url;
     }
 
-    public function id(): int
+    public function id(): string
     {
         return $this->id;
     }
@@ -52,14 +52,5 @@ class Repo
     public function url(): string
     {
         return $this->url;
-    }
-
-    public static function fromArray(array $data): self
-    {
-        return new self(
-            (int) $data['id'],
-            $data['name'],
-            $data['url']
-        );
     }
 }

@@ -20,7 +20,7 @@ class Actor
      *
      * @ORM\GeneratedValue(strategy="NONE")
      */
-    public int $id;
+    public string $id;
 
     /**
      * @ORM\Column(type="string")
@@ -37,15 +37,15 @@ class Actor
      */
     public string $avatarUrl;
 
-    public function __construct(int $id, string $login, string $url, string $avatarUrl)
+    public function __construct(int|string $id, string $login, string $url, string $avatarUrl)
     {
-        $this->id = $id;
+        $this->id = (string) $id;
         $this->login = $login;
         $this->url = $url;
         $this->avatarUrl = $avatarUrl;
     }
 
-    public function id(): int
+    public function id(): string
     {
         return $this->id;
     }
@@ -63,15 +63,5 @@ class Actor
     public function avatarUrl(): string
     {
         return $this->avatarUrl;
-    }
-
-    public static function fromArray(array $data): self
-    {
-        return new self(
-            (int) $data['id'],
-            $data['login'],
-            $data['url'],
-            $data['avatar_url']
-        );
     }
 }

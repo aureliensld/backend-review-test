@@ -22,7 +22,7 @@ class Event
      *
      * @ORM\GeneratedValue(strategy="NONE")
      */
-    private int $id;
+    private string $id;
 
     /**
      * @ORM\Column(type="EventType", nullable=false)
@@ -37,18 +37,20 @@ class Event
     /**
      * @ORM\ManyToOne(targetEntity="App\Entity\Actor", cascade={"persist"})
      *
-     * @ORM\JoinColumn(name="actor_id", referencedColumnName="id")
+     * @ORM\JoinColumn(name="actor_id", referencedColumnName="id", nullable=false)
      */
     private Actor $actor;
 
     /**
      * @ORM\ManyToOne(targetEntity="App\Entity\Repo", cascade={"persist"})
      *
-     * @ORM\JoinColumn(name="repo_id", referencedColumnName="id")
+     * @ORM\JoinColumn(name="repo_id", referencedColumnName="id", nullable=false)
      */
     private Repo $repo;
 
     /**
+     * @var mixed[]
+     *
      * @ORM\Column(type="json", nullable=false, options={"jsonb": true})
      */
     private array $payload;
@@ -63,9 +65,12 @@ class Event
      */
     private ?string $comment;
 
-    public function __construct(int $id, string $type, Actor $actor, Repo $repo, array $payload, \DateTimeImmutable $createAt, ?string $comment)
+    /**
+     * @param mixed[] $payload
+     */
+    public function __construct(int|string $id, string $type, Actor $actor, Repo $repo, array $payload, \DateTimeImmutable $createAt, ?string $comment)
     {
-        $this->id = $id;
+        $this->id = (string) $id;
         EventType::assertValidChoice($type);
         $this->type = $type;
         $this->actor = $actor;
@@ -79,7 +84,7 @@ class Event
         }
     }
 
-    public function id(): int
+    public function id(): string
     {
         return $this->id;
     }
@@ -99,9 +104,17 @@ class Event
         return $this->repo;
     }
 
+    /**
+     * @return mixed[]
+     */
     public function payload(): array
     {
         return $this->payload;
+    }
+
+    public function count(): int
+    {
+        return $this->count;
     }
 
     public function createAt(): \DateTimeImmutable
