@@ -23,5 +23,5 @@ interface ReadEventRepository
      */
     public function getLatest(SearchInput $searchInput): array;
 
-    public function exist(int $id): bool;
+    public function exist(string $id): bool;
 }

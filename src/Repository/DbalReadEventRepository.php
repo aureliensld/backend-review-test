@@ -89,7 +89,7 @@ SQL;
         return $result;
     }
 
-    public function exist(int $id): bool
+    public function exist(string $id): bool
     {
         $sql = <<<SQL
             SELECT 1
