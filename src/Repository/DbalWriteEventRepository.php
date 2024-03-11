@@ -3,9 +3,7 @@
 namespace App\Repository;
 
 use App\Dto\EventInput;
-use App\Dto\SearchInput;
 use Doctrine\DBAL\Connection;
-use phpDocumentor\Reflection\DocBlock\Tags\Author;
 
 class DbalWriteEventRepository implements WriteEventRepository
 {
@@ -16,7 +14,7 @@ class DbalWriteEventRepository implements WriteEventRepository
         $this->connection = $connection;
     }
 
-    public function update(EventInput $authorInput, int $id): void
+    public function update(EventInput $authorInput, string $id): void
     {
         $sql = <<<SQL
         UPDATE event
