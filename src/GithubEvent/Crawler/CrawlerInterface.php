@@ -2,6 +2,8 @@
 
 namespace App\GithubEvent\Crawler;
 
+use App\GithubEvent\Exception\NoEventFoundException;
+
 interface CrawlerInterface
 {
     /**
@@ -15,6 +17,8 @@ interface CrawlerInterface
      *     actor: array{id: int|string, login: string, url: string, avatar_url: string},
      *     repo: array{id: int|string, name: string, url: string}
      * }>
+     *
+     * @throws NoEventFoundException
      */
     public function run(\DateTimeInterface $dateTime): iterable;
 }

@@ -2,6 +2,7 @@
 
 namespace App\GithubEvent\Crawler;
 
+use App\GithubEvent\Exception\NoEventFoundException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class GHArchiveCrawler implements CrawlerInterface
@@ -12,6 +13,11 @@ class GHArchiveCrawler implements CrawlerInterface
     {
     }
 
+    /**
+     * Yields events from https://data.gharchive.org chunk by chunk as they are fetched.
+     *
+     * {@inheritdoc}
+     */
     public function run(\DateTimeInterface $dateTime): iterable
     {
         $url = sprintf('%s/%s.json.gz', self::BASE_URI, $dateTime->format('Y-m-d-G'));
@@ -27,7 +33,7 @@ class GHArchiveCrawler implements CrawlerInterface
             }
 
             if ($chunk->isFirst() && 404 === $response->getStatusCode()) {
-                throw new \RuntimeException(sprintf('No events found for date: "%s"', $dateTime->format('Y-m-d-G')));
+                throw new NoEventFoundException(sprintf('No events found for date: "%s"', $dateTime->format('Y-m-d-G')));
             }
 
             $rawContent = $chunk->getContent();
