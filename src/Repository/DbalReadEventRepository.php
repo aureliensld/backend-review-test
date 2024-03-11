@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\EventType;
+use App\Util\Pagination\CursorPaginator;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Types\Types;
@@ -70,7 +71,7 @@ class DbalReadEventRepository implements ReadEventRepository
         return $data;
     }
 
-    public function getLatest(\DateTimeImmutable $date, ?string $keyword = null): array
+    public function getLatest(\DateTimeImmutable $date, ?string $keyword = null, int $offset = 0, ?int $maxResults = null): iterable
     {
         $qb = $this->connection->createQueryBuilder();
         $qb
@@ -84,13 +85,16 @@ class DbalReadEventRepository implements ReadEventRepository
             ->innerJoin('event', 'actor', 'actor', 'actor.id = event.actor_id')
             ->where('date(create_at) = :date')
             ->setParameter('date', $date, Types::DATE_IMMUTABLE)
+            ->setFirstResult($offset)
+            ->orderBy('event.id')
         ;
 
         $this->addFTSWhereCondition($qb, $keyword);
+        if (null !== $maxResults) {
+            $qb->setMaxResults($maxResults + 1);
+        }
 
-        $results = $qb->fetchAllAssociative();
-
-        return array_map(static function ($item) {
+        $results = array_map(static function ($item) {
             $item['repo'] = [
                 'id' => $item['repo_id'],
                 'name' => $item['repo_name'],
@@ -107,7 +111,19 @@ class DbalReadEventRepository implements ReadEventRepository
             unset($item['actor_id'], $item['actor_login'], $item['actor_url'], $item['actor_avatar_url']);
 
             return $item;
-        }, $results);
+        }, $qb->fetchAllAssociative());
+
+        if (null === $maxResults) {
+            return $results;
+        }
+
+        if (\count($results) < $maxResults + 1) {
+            return $results;
+        }
+
+        array_pop($results);
+
+        return new CursorPaginator($results, $offset + $maxResults);
     }
 
     public function exist(string $id): bool

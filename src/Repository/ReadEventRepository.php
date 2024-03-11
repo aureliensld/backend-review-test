@@ -28,7 +28,7 @@ interface ReadEventRepository
      *      repo: array{id: int|string, name: string, url: string}
      *  }[]
      */
-    public function getLatest(\DateTimeImmutable $date, ?string $keyword = null): array;
+    public function getLatest(\DateTimeImmutable $date, ?string $keyword = null, int $offset = 0, ?int $maxResults = null): iterable;
 
     public function exist(string $id): bool;
 }

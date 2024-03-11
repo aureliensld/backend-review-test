@@ -19,6 +19,15 @@ class SearchInput
     #[Assert\NotBlank(allowNull: true)]
     public $keyword;
 
+    #[Assert\NotNull]
+    #[Assert\GreaterThanOrEqual(0)]
+    public int $cursor = 0;
+
+    #[Assert\NotNull]
+    #[Assert\GreaterThan(0)]
+    #[Assert\LessThanOrEqual(200)]
+    public int $resultsPerPage = 10;
+
     public function __construct()
     {
     }
