@@ -66,7 +66,11 @@ SQL;
 
         $connection = $this->connection;
         $counter = 0;
-        $executeStatement = static function (array $params) use ($connection, &$sqlTemplate, $onProgress, &$counter): int|string {
+        $executeStatement = static function (array $params) use ($connection, &$sqlTemplate, $onProgress, &$counter): void {
+            if (0 === \count($params)) {
+                return;
+            }
+
             $types = [
                 Types::BIGINT,  // event.id
                 'EventType',    // event.type
@@ -90,13 +94,11 @@ SQL;
 
             $types = array_merge(...array_fill(0, $rowCount, $types)); // Duplicate as many as row inserted
 
-            $res = $connection->executeStatement($sql, $params, $types);
+            $connection->executeStatement($sql, $params, $types);
 
             if (null !== $onProgress) {
                 $onProgress($counter);
             }
-
-            return $res;
         };
 
         $params = [];
