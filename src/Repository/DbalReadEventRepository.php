@@ -76,7 +76,7 @@ class DbalReadEventRepository implements ReadEventRepository
         $qb = $this->connection->createQueryBuilder();
         $qb
             ->select(
-                'event.*',
+                'event.id', 'event.type', 'event.count', 'event.payload', 'event.create_at', 'event.comment',
                 'repo.id as repo_id', 'repo.name as repo_name', 'repo.url as repo_url',
                 'actor.id as actor_id', 'actor.login as actor_login', 'actor.url as actor_url', 'actor.avatar_url as actor_avatar_url',
             )
@@ -145,17 +145,13 @@ class DbalReadEventRepository implements ReadEventRepository
             return;
         }
 
-        $likeParamName = uniqid();
-        $likeRegexParamName = uniqid('regex_');
+        $FTSParamName = uniqid();
+        $FTSConfigParamName = uniqid('fts_config_');
 
         $qb
-            ->andWhere($qb->expr()->or(
-                sprintf('payload->\'pull_request\'->>\'body\' like :%s', $likeParamName),
-                sprintf('payload->\'comment\'->>\'body\' like :%s', $likeParamName),
-                sprintf('payload->\'commits\' @@ format(\'$[*]."message" like_regex "%%s"\', :%s::text)::jsonpath', $likeRegexParamName),
-            ))
-            ->setParameter($likeParamName, '%'.$keyword.'%')
-            ->setParameter($likeRegexParamName, $keyword)
+            ->andWhere(sprintf('search_ts @@ to_tsquery(:%s, :%s)', $FTSConfigParamName, $FTSParamName))
+            ->setParameter($FTSConfigParamName, 'english')
+            ->setParameter($FTSParamName, $keyword)
         ;
     }
 }

@@ -7,7 +7,9 @@ namespace App\Entity;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
-#[ORM\Table(name: 'event', indexes: [new ORM\Index(columns: ['type'], name: 'IDX_EVENT_TYPE')])]
+#[ORM\Table(name: 'event')]
+#[ORM\Index(columns: ['type'], name: 'IDX_EVENT_TYPE')]
+#[ORM\Index(columns: ['search_ts'], name: 'event_search_ts_idx')]
 class Event
 {
     #[ORM\Id]
@@ -40,6 +42,12 @@ class Event
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $comment;
+
+    /**
+     * @internal Generated column for fulltext search
+     */
+    #[ORM\Column(name: 'search_ts', type: 'text', nullable: true, insertable: false, updatable: false, options: ['default' => 'english'])]
+    private mixed $searchTS = null;
 
     /**
      * @param mixed[] $payload
