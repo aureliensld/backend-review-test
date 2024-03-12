@@ -13,8 +13,8 @@ class GitHubEventImporter implements GitHubEventImporterInterface
     ) {
     }
 
-    public function import(\DateTimeInterface $date, ?callable $onProgress = null): int
+    public function import(\DateTimeInterface $date, ?int $batchSize = null, ?callable $onProgress = null): int
     {
-        return $this->repository->bulkInsert($this->crawler->run($date), $onProgress);
+        return $this->repository->bulkInsert($this->crawler->run($date), $batchSize, $onProgress);
     }
 }

@@ -21,5 +21,5 @@ interface WriteEventRepository
      *
      * @return int The number of stored events
      */
-    public function bulkInsert(iterable $events, ?callable $onProgress = null): int;
+    public function bulkInsert(iterable $events, ?int $batchSize = null, ?callable $onProgress = null): int;
 }

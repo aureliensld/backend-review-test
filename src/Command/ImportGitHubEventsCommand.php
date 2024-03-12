@@ -12,7 +12,9 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressIndicator;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\StyleInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand('app:import-github-events', 'Import GH events')]
@@ -28,7 +30,8 @@ class ImportGitHubEventsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('date', InputArgument::OPTIONAL, 'Import events within this specific date ranges')
+            ->addArgument('date', InputArgument::OPTIONAL, 'Import events within this specific date ranges', date('Y-m-d-{0..23}'))
+            ->addOption('batch-size', 's', InputOption::VALUE_OPTIONAL, 'Specifies the number of event inserted in a batch')
             ->setHelp(
                 <<<HELP
 Allowed date formats are: Y-m-d | Y-m-d-G | Y-m-d-{G..G}. When only date is provided, hour range will be set to {0..23}
@@ -44,7 +47,12 @@ HELP
     {
         $io = new SymfonyStyle($input, $output);
 
-        $dates = $this->dateTimeRangeParser->parse($input->getArgument('date') ?? date('Y-m-d-{0..23}'));
+        $batchSize = $this->getBatchSize($input, $io);
+        if (false === $batchSize) {
+            return Command::INVALID;
+        }
+
+        $dates = $this->dateTimeRangeParser->parse($input->getArgument('date'));
         $counter = 0;
         foreach ($dates as $date) {
             $formattedDate = $date->format('d/m/Y G\h');
@@ -54,7 +62,7 @@ HELP
             $progressIndicator->start(sprintf($message, 0));
 
             try {
-                $processedEvents = $this->eventImporter->import($date, static function (int $processedEvents) use ($progressIndicator, $message) {
+                $processedEvents = $this->eventImporter->import($date, $batchSize, static function (int $processedEvents) use ($progressIndicator, $message) {
                     $progressIndicator->advance();
                     $progressIndicator->setMessage(sprintf($message, $processedEvents));
                 });
@@ -71,6 +79,22 @@ HELP
 
         $io->success(sprintf('%u events imported !', $counter));
 
-        return 0;
+        return Command::SUCCESS;
+    }
+
+    private function getBatchSize(InputInterface $input, StyleInterface $style): int|false|null
+    {
+        $size = $input->getOption('batch-size');
+        if (null === $size) {
+            return null;
+        }
+
+        if (!ctype_digit($size)) {
+            $style->error(sprintf('Invalid batch size: %s', $size));
+
+            return false;
+        }
+
+        return (int) $size;
     }
 }

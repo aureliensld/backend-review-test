@@ -27,8 +27,10 @@ SQL;
         $this->connection->executeQuery($sql, ['id' => $id, 'comment' => $authorInput->comment]);
     }
 
-    public function bulkInsert(iterable $events, ?callable $onProgress = null): int
+    public function bulkInsert(iterable $events, ?int $batchSize = null, ?callable $onProgress = null): int
     {
+        $batchSize ??= \PHP_INT_MAX;
+
         $sqlTemplate = <<<SQL
             WITH raw_data (
                     id, type, count, payload, create_at, comment,
@@ -102,12 +104,14 @@ SQL;
         };
 
         $params = [];
+        $batchCounter = 0;
         foreach ($events as $event) {
             if (!isset(EventType::EVENT_TYPES[$event['type']])) {
                 continue;
             }
 
             ++$counter;
+            ++$batchCounter;
 
             $params[] = $event['id'];
             $params[] = EventType::EVENT_TYPES[$event['type']];
@@ -125,10 +129,11 @@ SQL;
             $params[] = $event['repo']['name'];
             $params[] = $event['repo']['url'];
 
-            $paramsCount = \count($params);
-            if ($paramsCount > 65500) { // Limitation of the driver (number of parameters must be between 0 and 65535)
+            $needFlush = $batchCounter >= $batchSize || \count($params) > 65500; // Limitation of the driver (number of parameters must be between 0 and 65535)
+            if ($needFlush) {
                 $executeStatement($params);
                 $params = [];
+                $batchCounter = 0;
             }
         }
 
