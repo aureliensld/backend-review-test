@@ -31,44 +31,9 @@ SQL;
     {
         $batchSize ??= \PHP_INT_MAX;
 
-        $sqlTemplate = <<<SQL
-            WITH raw_data (
-                    id, type, count, payload, create_at, comment,
-                    actor_id, actor_login, actor_url, actor_avatar_url, 
-                    repo_id, repo_name, repo_url
-                ) AS (
-                VALUES (
-                    NULL::bigint, NULL::text, null::integer, null::jsonb, null::timestamp, null::text,
-                    NULL::bigint, NULL::text, NULL::text, NULL::text, 
-                    NULL::bigint, NULL::text, NULL::text
-                ),
-                %s
-                OFFSET 1
-            ),
-            inserted_actors AS (
-                INSERT INTO actor (id, login, url, avatar_url)
-                    SELECT actor_id, actor_login, actor_url, actor_avatar_url
-                    FROM raw_data
-                    ORDER BY 1
-                ON CONFLICT (id) DO NOTHING
-            ),
-            inserted_repos AS (
-                INSERT INTO repo (id, name, url)
-                    SELECT repo_id, repo_name, repo_url
-                    FROM raw_data
-                    ORDER BY 1
-                ON CONFLICT (id) DO NOTHING
-            )
-            INSERT INTO "event" (id, actor_id, repo_id, type, count, payload, create_at, comment)
-                SELECT id, actor_id, repo_id, type, count, payload, create_at, comment
-                FROM raw_data
-                ORDER BY 1
-            ON CONFLICT (id) DO NOTHING
-SQL;
-
         $connection = $this->connection;
         $counter = 0;
-        $executeStatement = static function (array $params) use ($connection, &$sqlTemplate, $onProgress, &$counter): void {
+        $executeStatement = function (array $params) use ($connection, $onProgress, &$counter): void {
             if (0 === \count($params)) {
                 return;
             }
@@ -90,13 +55,9 @@ SQL;
             ];
             $boundedParameters = \count($types);
             $rowCount = (int) (\count($params) / $boundedParameters);
-
-            $row = sprintf('(%s)', implode(', ', array_fill(0, $boundedParameters, '?')));
-            $sql = sprintf($sqlTemplate, implode(', ', array_fill(0, $rowCount, $row)));
-
             $types = array_merge(...array_fill(0, $rowCount, $types)); // Duplicate as many as row inserted
 
-            $connection->executeStatement($sql, $params, $types);
+            $connection->executeStatement($this->getBulkInsertSqlQuery($rowCount), $params, $types);
 
             if (null !== $onProgress) {
                 $onProgress($counter);
@@ -141,5 +102,47 @@ SQL;
         $executeStatement($params);
 
         return $counter;
+    }
+
+    private function getBulkInsertSqlQuery(int $rowCount): string
+    {
+        $sqlTemplate = <<<SQL
+            WITH raw_data (
+                    id, type, count, payload, create_at, comment,
+                    actor_id, actor_login, actor_url, actor_avatar_url, 
+                    repo_id, repo_name, repo_url
+                ) AS (
+                VALUES (
+                    NULL::bigint, NULL::text, null::integer, null::jsonb, null::timestamp, null::text,
+                    NULL::bigint, NULL::text, NULL::text, NULL::text, 
+                    NULL::bigint, NULL::text, NULL::text
+                ),
+                %s
+                OFFSET 1
+            ),
+            inserted_actors AS (
+                INSERT INTO actor (id, login, url, avatar_url)
+                    SELECT actor_id, actor_login, actor_url, actor_avatar_url
+                    FROM raw_data
+                    ORDER BY 1
+                ON CONFLICT (id) DO NOTHING
+            ),
+            inserted_repos AS (
+                INSERT INTO repo (id, name, url)
+                    SELECT repo_id, repo_name, repo_url
+                    FROM raw_data
+                    ORDER BY 1
+                ON CONFLICT (id) DO NOTHING
+            )
+            INSERT INTO "event" (id, actor_id, repo_id, type, count, payload, create_at, comment)
+                SELECT id, actor_id, repo_id, type, count, payload, create_at, comment
+                FROM raw_data
+                ORDER BY 1
+            ON CONFLICT (id) DO NOTHING
+SQL;
+
+        $row = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+
+        return sprintf($sqlTemplate, implode(', ', array_fill(0, $rowCount, $row)));
     }
 }
