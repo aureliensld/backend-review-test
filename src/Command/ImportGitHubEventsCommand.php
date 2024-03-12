@@ -4,29 +4,97 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\GithubEvent\Exception\NoEventFoundException;
+use App\GithubEvent\GitHubEventImporterInterface;
+use App\Util\DateTimeRangeParser;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\ProgressIndicator;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\StyleInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
-/**
- * This command must import GitHub events.
- * You can add the parameters and code you want in this command to meet the need.
- */
+#[AsCommand('app:import-github-events', 'Import GH events')]
 class ImportGitHubEventsCommand extends Command
 {
-    protected static $defaultName = 'app:import-github-events';
+    public function __construct(
+        private readonly DateTimeRangeParser $dateTimeRangeParser,
+        private readonly GitHubEventImporterInterface $eventImporter,
+    ) {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {
         $this
-            ->setDescription('Import GH events');
+            ->addArgument('date', InputArgument::OPTIONAL, 'Import events within this specific date ranges', date('Y-m-d-{0..23}'))
+            ->addOption('batch-size', 's', InputOption::VALUE_OPTIONAL, 'Specifies the number of event inserted in a batch')
+            ->setHelp(
+                <<<HELP
+Allowed date formats are: Y-m-d | Y-m-d-G | Y-m-d-{G..G}. When only date is provided, hour range will be set to {0..23}
+Eg:
+    2024-01-01
+    2024-01-01-0
+    2024-01-01-{0..23}
+HELP
+            );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        // Let's rock !
-        // It's up to you now
+        $io = new SymfonyStyle($input, $output);
 
-        return 1;
+        $batchSize = $this->getBatchSize($input, $io);
+        if (false === $batchSize) {
+            return Command::INVALID;
+        }
+
+        $dates = $this->dateTimeRangeParser->parse($input->getArgument('date'));
+        $counter = 0;
+        foreach ($dates as $date) {
+            $formattedDate = $date->format('d/m/Y G\h');
+            $message = sprintf('<comment>Importing %s : %%u...</comment>', $formattedDate);
+
+            $progressIndicator = new ProgressIndicator($output, 'very_verbose');
+            $progressIndicator->start(sprintf($message, 0));
+
+            try {
+                $processedEvents = $this->eventImporter->import($date, $batchSize, static function (int $processedEvents) use ($progressIndicator, $message) {
+                    $progressIndicator->advance();
+                    $progressIndicator->setMessage(sprintf($message, $processedEvents));
+                });
+            } catch (NoEventFoundException) {
+                $progressIndicator->finish(sprintf('<error>Importing %s : No events found</error>', $formattedDate));
+
+                continue;
+            }
+
+            $progressIndicator->finish(sprintf('<comment>Importing %s : %u events imported</comment>', $formattedDate, $processedEvents));
+
+            $counter += $processedEvents;
+        }
+
+        $io->success(sprintf('%u events imported !', $counter));
+
+        return Command::SUCCESS;
+    }
+
+    private function getBatchSize(InputInterface $input, StyleInterface $style): int|false|null
+    {
+        $size = $input->getOption('batch-size');
+        if (null === $size) {
+            return null;
+        }
+
+        if (!ctype_digit($size)) {
+            $style->error(sprintf('Invalid batch size: %s', $size));
+
+            return false;
+        }
+
+        return (int) $size;
     }
 }

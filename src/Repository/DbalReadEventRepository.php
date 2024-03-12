@@ -2,8 +2,11 @@
 
 namespace App\Repository;
 
-use App\Dto\SearchInput;
+use App\Entity\EventType;
+use App\Util\Pagination\CursorPaginator;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Query\QueryBuilder;
+use Doctrine\DBAL\Types\Types;
 
 class DbalReadEventRepository implements ReadEventRepository
 {
@@ -14,93 +17,141 @@ class DbalReadEventRepository implements ReadEventRepository
         $this->connection = $connection;
     }
 
-    public function countAll(SearchInput $searchInput): int
+    public function countAll(\DateTimeImmutable $date, ?string $keyword = null): int
     {
-        $sql = <<<SQL
-        SELECT sum(count) as count
-        FROM event
-        WHERE date(create_at) = :date
-        AND payload like %{$searchInput->keyword}%
-SQL;
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->select('sum(count) as count')
+            ->from('event')
+            ->where('date(create_at) = :date')
+            ->setParameter('date', $date, Types::DATE_IMMUTABLE)
+        ;
 
-        return (int) $this->connection->fetchOne($sql, [
-            'date' => $searchInput->date
-        ]);
+        $this->addFTSWhereCondition($qb, $keyword);
+
+        return $qb->fetchOne() ?? 0;
     }
 
-    public function countByType(SearchInput $searchInput): array
+    public function countByType(\DateTimeImmutable $date, ?string $keyword = null): array
     {
-        $sql = <<<'SQL'
-            SELECT type, sum(count) as count
-            FROM event
-            WHERE date(create_at) = :date
-            AND payload like %{$searchInput->keyword}%
-            GROUP BY type
-SQL;
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->select('type, sum(count) as count')
+            ->from('event')
+            ->where('date(create_at) = :date')
+            ->setParameter('date', $date, Types::DATE_IMMUTABLE)
+            ->groupBy('type')
+        ;
 
-        return $this->connection->fetchAllKeyValue($sql, [
-            'date' => $searchInput->date
-        ]);
+        $this->addFTSWhereCondition($qb, $keyword);
+
+        return $qb->fetchAllKeyValue();
     }
 
-    public function statsByTypePerHour(SearchInput $searchInput): array
+    public function statsByTypePerHour(\DateTimeImmutable $date, ?string $keyword = null): array
     {
-        $sql = <<<SQL
-            SELECT extract(hour from create_at) as hour, type, sum(count) as count
-            FROM event
-            WHERE date(create_at) = :date
-            AND payload like %{$searchInput->keyword}%
-            GROUP BY TYPE, EXTRACT(hour from create_at)
-SQL;
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->select('extract(hour from create_at) as hour, type, sum(count) as count')
+            ->from('event')
+            ->where('date(create_at) = :date')
+            ->setParameter('date', $date, Types::DATE_IMMUTABLE)
+            ->groupBy(['type', 'EXTRACT(hour from create_at)'])
+        ;
 
-        $stats = $this->connection->fetchAll($sql, [
-            'date' => $searchInput->date
-        ]);
+        $this->addFTSWhereCondition($qb, $keyword);
 
-        $data = array_fill(0, 24, ['commit' => 0, 'pullRequest' => 0, 'comment' => 0]);
+        $results = $qb->fetchAllAssociative();
+        $data = array_fill(0, 24, array_fill_keys(EventType::getValues(), 0));
 
-        foreach ($stats as $stat) {
+        foreach ($results as $stat) {
             $data[(int) $stat['hour']][$stat['type']] = $stat['count'];
         }
 
         return $data;
     }
 
-    public function getLatest(SearchInput $searchInput): array
+    public function getLatest(\DateTimeImmutable $date, ?string $keyword = null, int $offset = 0, ?int $maxResults = null): iterable
     {
-        $sql = <<<SQL
-            SELECT type, repo
-            FROM event
-            WHERE date(create_at) = :date
-            AND payload like %{$searchInput->keyword}%
-SQL;
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->select(
+                'event.id', 'event.type', 'event.count', 'event.payload', 'event.create_at', 'event.comment',
+                'repo.id as repo_id', 'repo.name as repo_name', 'repo.url as repo_url',
+                'actor.id as actor_id', 'actor.login as actor_login', 'actor.url as actor_url', 'actor.avatar_url as actor_avatar_url',
+            )
+            ->from('event', 'event')
+            ->innerJoin('event', 'repo', 'repo', 'repo.id = event.repo_id')
+            ->innerJoin('event', 'actor', 'actor', 'actor.id = event.actor_id')
+            ->where('date(create_at) = :date')
+            ->setParameter('date', $date, Types::DATE_IMMUTABLE)
+            ->setFirstResult($offset)
+            ->orderBy('event.id')
+        ;
 
-        $result = $this->connection->fetchAllAssociative($sql, [
-            'date' => $searchInput->date,
-            'keyword' => $searchInput->keyword,
-        ]);
+        $this->addFTSWhereCondition($qb, $keyword);
+        if (null !== $maxResults) {
+            $qb->setMaxResults($maxResults + 1);
+        }
 
-        $result = array_map(static function($item) {
-            $item['repo'] = json_decode($item['repo'], true);
+        $results = array_map(static function ($item) {
+            $item['repo'] = [
+                'id' => $item['repo_id'],
+                'name' => $item['repo_name'],
+                'url' => $item['repo_url'],
+            ];
+            unset($item['repo_id'], $item['repo_name'], $item['repo_url']);
+
+            $item['actor'] = [
+                'id' => $item['actor_id'],
+                'login' => $item['actor_login'],
+                'url' => $item['actor_avatar_url'],
+                'avatar_url' => $item['actor_avatar_url'],
+            ];
+            unset($item['actor_id'], $item['actor_login'], $item['actor_url'], $item['actor_avatar_url']);
 
             return $item;
-        }, $result);
+        }, $qb->fetchAllAssociative());
 
-        return $result;
+        if (null === $maxResults) {
+            return $results;
+        }
+
+        if (\count($results) < $maxResults + 1) {
+            return $results;
+        }
+
+        array_pop($results);
+
+        return new CursorPaginator($results, $offset + $maxResults);
     }
 
-    public function exist(int $id): bool
+    public function exist(string $id): bool
     {
-        $sql = <<<SQL
-            SELECT 1
-            FROM event
-            WHERE id = :id
-        SQL;
+        $qb = $this->connection->createQueryBuilder();
+        $qb
+            ->select('1')
+            ->from('event')
+            ->where('id = :id')
+            ->setParameter('id', $id, Types::BIGINT)
+        ;
 
-        $result = $this->connection->fetchOne($sql, [
-            'id' => $id
-        ]);
+        return (bool) $qb->fetchOne();
+    }
 
-        return (bool) $result;
+    private function addFTSWhereCondition(QueryBuilder $qb, ?string $keyword): void
+    {
+        if (null === $keyword) {
+            return;
+        }
+
+        $FTSParamName = uniqid();
+        $FTSConfigParamName = uniqid('fts_config_');
+
+        $qb
+            ->andWhere(sprintf('search_ts @@ websearch_to_tsquery(:%s, :%s)', $FTSConfigParamName, $FTSParamName))
+            ->setParameter($FTSConfigParamName, 'english')
+            ->setParameter($FTSParamName, $keyword)
+        ;
     }
 }
