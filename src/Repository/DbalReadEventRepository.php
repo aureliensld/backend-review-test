@@ -149,7 +149,7 @@ class DbalReadEventRepository implements ReadEventRepository
         $FTSConfigParamName = uniqid('fts_config_');
 
         $qb
-            ->andWhere(sprintf('search_ts @@ to_tsquery(:%s, :%s)', $FTSConfigParamName, $FTSParamName))
+            ->andWhere(sprintf('search_ts @@ websearch_to_tsquery(:%s, :%s)', $FTSConfigParamName, $FTSParamName))
             ->setParameter($FTSConfigParamName, 'english')
             ->setParameter($FTSParamName, $keyword)
         ;
