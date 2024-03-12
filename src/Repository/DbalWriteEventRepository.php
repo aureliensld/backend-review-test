@@ -116,7 +116,8 @@ SQL;
             $params[] = $event['id'];
             $params[] = EventType::EVENT_TYPES[$event['type']];
             $params[] = $event['payload']['size'] ?? 1;
-            $params[] = json_encode($event['payload'], \JSON_BIGINT_AS_STRING | \JSON_THROW_ON_ERROR);
+            // "\u0000" Unicode is not supported by PostgreSQL
+            $params[] = preg_replace('/(?<!\\\\)\\\\u0000/', '', json_encode($event['payload'], \JSON_BIGINT_AS_STRING | \JSON_THROW_ON_ERROR));
             $params[] = $event['created_at'];
             $params[] = null;
 
